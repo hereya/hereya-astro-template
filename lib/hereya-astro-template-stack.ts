@@ -22,8 +22,8 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
     const hereyaToken = process.env['hereyaToken'] as string;
     const hereyaCloudUrl = process.env['hereyaCloudUrl'] || 'https://cloud.hereya.dev';
 
-    // Sanitize: projectName may contain org prefix (e.g. "hereya/myapp" → "myapp")
-    const safeName = projectName.includes('/') ? projectName.split('/').pop()! : projectName;
+    // Sanitize: projectName may contain org prefix (e.g. "hereya/myapp" → "hereya-myapp")
+    const safeName = projectName.replaceAll('/', '-');
 
     // ── Upload template directory as S3 asset ──
     // Local bundling copies template files and injects hereya.yaml (no Docker needed)
