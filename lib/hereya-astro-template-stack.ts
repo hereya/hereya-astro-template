@@ -18,7 +18,7 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
     // Parameters from hereya
     const projectName = process.env['projectName'] as string;
     const workspace = process.env['workspace'] as string;
-    const prodWorkspace = process.env['prodWorkspace'] as string;
+    const deployWorkspace = process.env['deployWorkspace'] as string;
     const hereyaToken = process.env['hereyaToken'] as string;
     const hereyaCloudUrl = process.env['hereyaCloudUrl'] || 'https://cloud.hereya.dev';
 
@@ -145,9 +145,9 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
           type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
           value: hereyaCloudUrl,
         },
-        PROD_WORKSPACE: {
+        DEPLOY_WORKSPACE: {
           type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
-          value: prodWorkspace,
+          value: deployWorkspace,
         },
       },
       buildSpec: codebuild.BuildSpec.fromSourceFilename('buildspec.yml'),

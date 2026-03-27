@@ -14,7 +14,7 @@ phases:
       - npm run build
   post_build:
     commands:
-      - hereya deploy -w $PROD_WORKSPACE
+      - hereya deploy -w $DEPLOY_WORKSPACE
 artifacts:
   files:
     - 'dist/**/*'
