@@ -7,6 +7,7 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
+import * as fs from 'fs';
 import * as path from 'path';
 import { Construct } from 'constructs';
 
@@ -22,17 +23,22 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
     const hereyaCloudUrl = process.env['hereyaCloudUrl'] || 'https://cloud.hereya.dev';
 
     // ── Upload template directory as S3 asset ──
-    // Bundling adds hereya.yaml with project/workspace values
+    // Local bundling copies template files and injects hereya.yaml (no Docker needed)
     const templateAsset = new Asset(this, 'TemplateAsset', {
       path: path.join(__dirname, '..', 'template'),
       bundling: {
         image: cdk.DockerImage.fromRegistry('public.ecr.aws/docker/library/node:20-slim'),
-        command: [
-          'bash', '-c',
-          `cp -r /asset-input/* /asset-output/ && ` +
-          `printf 'project: ${projectName}\\nworkspace: ${workspace}\\n' > /asset-output/hereya.yaml`,
-        ],
-        user: 'root',
+        local: {
+          tryBundle(outputDir: string): boolean {
+            const templateDir = path.join(__dirname, '..', 'template');
+            copyDirSync(templateDir, outputDir);
+            fs.writeFileSync(
+              path.join(outputDir, 'hereya.yaml'),
+              `project: ${projectName}\nworkspace: ${workspace}\n`,
+            );
+            return true;
+          },
+        },
       },
     });
 
@@ -192,5 +198,18 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
       value: gitPasswordSecret.secretArn,
       description: 'Secrets Manager ARN for CodeCommit Git password (auto-resolved by Hereya)',
     });
+  }
+}
+
+function copyDirSync(src: string, dest: string) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
   }
 }
