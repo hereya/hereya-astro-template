@@ -22,6 +22,9 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
     const hereyaToken = process.env['hereyaToken'] as string;
     const hereyaCloudUrl = process.env['hereyaCloudUrl'] || 'https://cloud.hereya.dev';
 
+    // Sanitize: projectName may contain org prefix (e.g. "hereya/myapp" → "myapp")
+    const safeName = projectName.includes('/') ? projectName.split('/').pop()! : projectName;
+
     // ── Upload template directory as S3 asset ──
     // Local bundling copies template files and injects hereya.yaml (no Docker needed)
     const templateAsset = new Asset(this, 'TemplateAsset', {
@@ -44,7 +47,7 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
 
     // ── CodeCommit Repository with initial code ──
     const repo = new codecommit.CfnRepository(this, 'Repo', {
-      repositoryName: projectName,
+      repositoryName: safeName,
       repositoryDescription: `Astro site for ${projectName}`,
       code: {
         branchName: 'main',
@@ -56,18 +59,18 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
     });
 
     // Higher-level reference for use with CodeBuild source
-    const repoRef = codecommit.Repository.fromRepositoryName(this, 'RepoRef', projectName);
+    const repoRef = codecommit.Repository.fromRepositoryName(this, 'RepoRef', safeName);
     repoRef.node.addDependency(repo);
 
     // ── IAM User for Git HTTPS credentials ──
     const gitUser = new iam.User(this, 'GitUser', {
-      userName: `${projectName}-git-user`,
+      userName: `${safeName}-git-user`,
     });
 
     gitUser.addToPolicy(new iam.PolicyStatement({
       actions: ['codecommit:GitPull', 'codecommit:GitPush'],
       resources: [
-        cdk.Arn.format({ service: 'codecommit', resource: projectName }, this),
+        cdk.Arn.format({ service: 'codecommit', resource: safeName }, this),
       ],
     }));
 
@@ -113,21 +116,21 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
 
     // Store the Git password in Secrets Manager
     const gitPasswordSecret = new secretsmanager.Secret(this, 'GitPasswordSecret', {
-      secretName: `${projectName}/git-password`,
-      description: `CodeCommit Git password for ${projectName}`,
+      secretName: `${safeName}/git-password`,
+      description: `CodeCommit Git password for ${safeName}`,
       secretStringValue: cdk.SecretValue.unsafePlainText(gitPassword),
     });
 
     // ── Store Hereya token in Secrets Manager ──
     const hereyaTokenSecret = new secretsmanager.Secret(this, 'HereyaTokenSecret', {
-      secretName: `${projectName}/hereya-token`,
-      description: `Hereya personal token for ${projectName} CI/CD`,
+      secretName: `${safeName}/hereya-token`,
+      description: `Hereya personal token for ${safeName} CI/CD`,
       secretStringValue: cdk.SecretValue.unsafePlainText(hereyaToken),
     });
 
     // ── CodeBuild Project ──
     const buildProject = new codebuild.Project(this, 'BuildProject', {
-      projectName: `${projectName}-build`,
+      projectName: `${safeName}-build`,
       source: codebuild.Source.codeCommit({ repository: repoRef }),
       environment: {
         buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
@@ -176,7 +179,7 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
           event: ['referenceCreated', 'referenceUpdated'],
           referenceType: ['branch'],
           referenceName: ['main'],
-          repositoryName: [projectName],
+          repositoryName: [safeName],
         },
       },
     });
@@ -185,7 +188,7 @@ export class HereyaAstroTemplateStack extends cdk.Stack {
 
     // ── Outputs ──
     new cdk.CfnOutput(this, 'hereyaGitRemoteUrl', {
-      value: `https://git-codecommit.${this.region}.amazonaws.com/v1/repos/${projectName}`,
+      value: `https://git-codecommit.${this.region}.amazonaws.com/v1/repos/${safeName}`,
       description: 'CodeCommit HTTPS clone URL',
     });
 
